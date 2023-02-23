@@ -1,0 +1,726 @@
+FORMAT: 1A
+HOST: https://test.tuyoanalytics.com/
+
+# Documentación Tuyo API
+
+El presente documento explica y muestra ejemplos para la correcta utilización de la API de integración de Tuyo.
+
+Para poder agregar productos a través de integración deberá consultar los endpoints que se mostrarán en esta referencia.
+
+Antes de poder crear un producto debe de obtener el listado de categorías y subcategorías (ver la sección Obtener categorías y subcategorías).
+
+A continuación mostramos los conceptos necesarios para poder efectuar una integración exitosa.
+
+### API Key
+
+Esto nos servirá de llave para obtener los insumos necesarios para efectuar la creación de Productos. 
+Los clientes pueden solicitar que se les brinde un API Key para producción y otra para testing.
+
+### Timestamp
+
+El timestamp como URI Param en cada petición nos servirá a verificar que el request se esta haciendo justo en el momento en que se consulta la API.
+En JS se puede obtener:
+```js
+const timestamp = new Date().getTime();
+
+// Ejemplo de uso en la construcción de la url del request
+const request = `https://${API_URL}?timestamp=${timestamp}`;
+```
+
+> Si `timestamp` no se envía correctamente, se retorna el error `"Request is expired"`
+
+### Tipos de Transporte
+
+Ayudan a identificar que tipo de transporte debe utilizarse con los paquetes. Es importante especificarlos al crear el Producto con su repectivo tipo. A continuación se muestran los posibles tipos:
+
+| Tipo        | Descripción                                                                        |
+| ----------- | ---------------------------------------------------------------------------------- |
+| Motocicleta | Productos con peso máximo de 50 lbs y dimensiones máximas de 50 cm x 50 cm x 50 cm |
+| Liviano     | Productos con peso máximo de 1700 lbs                                              |
+| Pesado      | Productos con peso mayor a 1700 lbs                                                |
+
+
+### Tipo de Producto
+
+Ayudan a clasificar el producto. Es importante especificarlos al crear el Producto con su respectivo tipo. A continuación se muestran los posibles tipos:
+
+| ID  | Tipo      | Descripción                        |
+|:--- | --------- | ---------------------------------- |
+| 1   | Retail    | Productos varios                   |
+| 2   | Alimentos | Productos de consumo no preparados |
+| 4   | Farmacia  | Productos farmacéuticos            |
+
+### Códigos de Respuesta
+
+Ayudan a clasificar las peticiones en exitosos o con error. A continuación se muestran los posibles tipos:
+
+| Código  | Tipo      | Descripción                        |
+|:--- | --------- | ---------------------------------- |
+| 200   | Exitosa    | La petición fue realizada exitosamente                  |
+| 400   | Error | Error realizar la acción en el servidor |
+| 401   | Error | Error al autorizar la petición |
+| 403   | Error | La acción no está permitida |
+| 404   | Error | El recurso o el endpoint no esta disponible |
+| 409   | Error | Error en el envío de datos |
+| 500   | Error | Error interno del servidor |
+
+## Categorías y subcategorías [/api/get_categories{?timestamp}]
+
+### Obtener categorías y subcategorías [GET]
+
+Estructura de la respuesta
+
+| Campo                                 | Tipo de Dato | Descripción                |
+| :------------------------------------ | :----------- | :------------------------- |
+| productsCategoriesId                  | Integer      | ID                         |
+| name                                  | String       | Nombre                     |
+| fk_productsTypesId                    | Integer      | ID tipo de producto        |
+| subcategories                         | Object[]     | Colección de subcategorias |
+| subcategories.productsSubcategoriesId | Integer      | ID de subcategoría         |
+| subcategories.name                    | Integer      | Nombre de subcategoría     |
+
++ Parameters
+    + timestamp: `1656461076` (required, number) - Tiempo actual en que se ejecuta el request
+
++ Request
+    + Headers
+            
+            x-api-token: {API_KEY}
+
++ Response 200 (application/json)
+
+        [
+            {
+                "productsCategoriesId": 1,
+                "name": "Ropa",
+                "fk_productsTypesId": 1,
+                "subcategories": [
+                    "productsSubcategoriesId": 1,
+                    "name": "Dama"
+                ]
+            },
+            {
+                "productsCategoriesId": 2,
+                "name": "Zapatos",
+                "fk_productsTypesId": 1,
+                "subcategories": [
+                    "productsSubcategoriesId": 3,
+                    "name": "Deportivos"
+                ]
+            }
+        ]
+
+## Ordenes [/api/update_order/{sku}{?timestamp}]
+
+### Actualizar estados (Sólo para productos únicos*) [PATCH]
+
+Listado de estados de la orden
+
+| Estado  | Descripción                 |
+| ------- | --------------------------- |
+| Empaque | Proceso de picking (feedback como Orden Aceptada)          |
+| Ruta | En proceso de entrega (feedback como Listo de Recolección)          |
+| Cancelada | Orden Cancelada          |
+
+> *Productos únicos: Productos con una unidad en stock que nunca se vuelven a vender
+
++ Parameters
+    + sku: `L01936657` (required, string) - SKU del producto
+    + timestamp: `1656461076` (required, number) - Tiempo actual en que se ejecuta el request
+
++ Request
+    + Headers
+            
+            x-api-token: {API_KEY}
+
+    + Body
+
+                {
+                    "status": "Empaque"
+                }
+
++ Response 200 (application/json)
+    + Body
+
+            {
+                "status": 200,
+                "response": " Order updated!",
+            }
++ Response 400 (application/json)
+    + Body
+
+            {
+                "status": 400,
+                "response": "Mensaje del error",
+            }
++ Response 401 (application/json)
+    + Body
+
+            {
+                "status": 401,
+                "response": "Unauthorized",
+            }
+
+## Productos [/api]
+
+### Crear productos [POST /api/create_products{?timestamp}]
+
+Tomar en cuenta que deberá especificar los siguientes datos:
+
+- Tipo de transporte
+- ID de tipo de producto
+- ID de categoría obtenido en el endpoint de categorías.
+- ID de subcategorías obtenido en el endpoint de categorías.
+- ID de tienda proporcionado por Tuyo
+- ID de sucursal proporcionado por Tuyo
+- ID de usuario proporcionado por Tuyo
+- Tiempo de preparación
+
+Estructura del body
+
+| Requerido | Campo                     | Tipo de Dato | Descripción                                      |
+|:----: | ------------------------- |:------------ |:------------------------------------------------ |
+| si   | sku                       | String       | SKU del producto (max 20 caracteres)             |
+| si   | name                      | String       | Nombre del producto                              |
+| si   | preparationTime                      | Number       | Tiempo en que se tardará el producto en ser recogido en milisegundos (86400000 = 1 dia)                              |
+| si   | description               | String       | Descripción breve                                |
+| si   | regularPrice              | Double       | Precio sin descuento                             |
+| si   | hasVariant                | Boolean      | Tiene variante? (true/false)                     |
+| si   | freeShipping              | Boolean      | Tiene envio gratis? (true/false)                 |
+| si   | cargoType                 | String       | Tipo Transaporte (Motocicleta, Liviano y Pesado) |
+| si   | isFragile                 | Boolean       | Producto Fragil? (true/false)                    |
+| no   | discount                  | Integer      | Descuento (40% = 40)                             |
+| si   | fk_usersId                | Integer      | ID de usuario                                    |
+| si   | fk_storesId               | Integer      | ID de tienda                                     |
+| si   | fk_categoriesId           | Integer      | ID de Categoría                                  |
+| si   | fk_subcategoriesId        | Integer      | ID de Subcategoría                               |
+| si   | fk_productsTypesId        | Integer      | ID de Tipo de Producto                           |
+| si   | createdBy                 | Integer      | ID de creador (ID de usuario)                    |
+| no   | tags                      | String       | Etiquetas o Palabras Claves (separadas por coma) |
+| si   | active                    | String       | Producto activo? (0 = No, 1 = Si)                |
+| si   | images                    | Object[]     | Colección de Imágenes                            |
+| si   | images.url                | String       | URL de Imagen                                    |
+| si   | images.createdBy          | Integer      | ID de creador (ID de usuario)                    |
+| si   | variants                  | Object[]     | Colección de Variantes                           |
+| si   | variants.sku              | String       | SKU de Variante                                  |
+| no   | variants.image            | String       | URL de Imagen de Variante                        |
+| si   | variants.price            | Double       | Precio de Variante                               |
+| no   | variants.discount         | Integer      | Descuento de Variante                            |
+| si   | variants.attributes       | String       | Atributos de Variante                            |
+| si   | variants.values           | String       | Valores de atributos de Variante                 |
+| si   | variants.createdBy        | Integer      | ID de creador (ID de usuario)                    |
+| si   | variants.stock                     | Object[]     | Colección de Stock                               |
+| si   | variants.stock.stock               | Integer      | Valor del Stock                                  |
+| si   | variants.stock.fk_storesBranchesId | Integer      | ID de sucursal                                   |
+| si   | variants.stock.createdBy           | Integer      | ID de creador (ID de usuario)                    |
+
++ Parameters
+    + timestamp: `1656461076` (required, number) - Tiempo actual en que se ejecuta el request
+
++ Request (application/json)
+    + Body
+
+            [
+              {
+                "preparationTime": 86400000,
+                "name": "Nike AIR Ultra comfort",
+                "hasVariant": false,
+                "fk_categoriesId": 10,
+                "fk_subcategoriesId": 81,
+                "sku": "32G4HJ32G4",
+                "regularPrice": 85.99,
+                "discount": 0,
+                "cargoType": "Motocicleta",
+                "freeShipping": false,
+                "isFragile": false,
+                "description": "Description ultra comfortable shoes",
+                "fk_usersId": 16890,
+                "tags": "Tag01,Tag02,Tag03",
+                "active": "1",
+                "createdBy": 16890,
+                "fk_storesId": 362,
+                "fk_productsTypesId": 1,
+                "images": [
+                  {
+                    "url": "https://tuyomedia.s3.us-east-2.amazonaws.com/misc/empty.jpg",
+                    "createdBy": 16890
+                  }
+                ],
+                "variants": [
+                  {
+                    "attributes": "Tipo",
+                    "values": "Unico",
+                    "sku": "32G4HJ32G4",
+                    "price": 85.99,
+                    "discount": 0,
+                    "image": "https://tuyomedia.s3.us-east-2.amazonaws.com/misc/empty.jpg",
+                    "createdBy": 16890,
+                    "stock": [
+                      {
+                        "stock": 1,
+                        "fk_storesBranchesId": 428,
+                        "createdBy": 16890
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+    + Headers
+
+            x-api-token: {API_KEY}
+
++ Response 200 (application/json)
+    + Body
+
+            {
+                "status": 200,
+                "response": "Productos creados satisfactoriamente",
+            }
++ Response 400 (application/json)
+    + Body
+
+            {
+                "status": 400,
+                "response": "Mensaje del error",
+            }
++ Response 401 (application/json)
+    + Body
+
+            {
+                "status": 401,
+                "response": "Unauthorized",
+            }
+            
++ Request (application/json)
+    + Body
+
+            [
+              {
+                "preparationTime": 86400000,
+                "name": "Nike AIR Ultra comfort",
+                "hasVariant": false,
+                "fk_categoriesId": 10,
+                "fk_subcategoriesId": 81,
+                "sku": "32G4HJ32G4",
+                "regularPrice": 85.99,
+                "discount": 0,
+                "cargoType": "Motocicleta",
+                "freeShipping": false,
+                "isFragile": false,
+                "description": "Description ultra comfortable shoes",
+                "fk_usersId": 16890,
+                "tags": "Tag01,Tag02,Tag03",
+                "active": "1",
+                "createdBy": 16890,
+                "fk_storesId": 362,
+                "fk_productsTypesId": 1,
+                "images": [
+                  {
+                    "url": "https://tuyomedia.s3.us-east-2.amazonaws.com/misc/empty.jpg",
+                    "createdBy": 16890
+                  }
+                ],
+                "variants": [
+                  {
+                    "attributes": "Talla,Color",
+                    "values": "8,Negro",
+                    "sku": "32G4HJ32G4N",
+                    "price": 85.99,
+                    "discount": 0,
+                    "image": "https://tuyomedia.s3.us-east-2.amazonaws.com/misc/empty.jpg",
+                    "createdBy": 16890,
+                    "stock": [
+                      {
+                        "stock": 5,
+                        "fk_storesBranchesId": 428,
+                        "createdBy": 16890
+                      }
+                    ]
+                  },
+                  {
+                    "attributes": "Talla,Color",
+                    "values": "8,Blanco",
+                    "sku": "32G4HJ32G4B",
+                    "price": 85.99,
+                    "discount": 0,
+                    "image": "https://tuyomedia.s3.us-east-2.amazonaws.com/misc/empty.jpg",
+                    "createdBy": 16890,
+                    "stock": [
+                      {
+                        "stock": 3,
+                        "fk_storesBranchesId": 428,
+                        "createdBy": 16890
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+    + Headers
+
+            x-api-token: {API_KEY}
+
++ Response 200 (application/json)
+    + Body
+
+            {
+                "status": 200,
+                "response": "Productos creados satisfactoriamente",
+            }
++ Response 400 (application/json)
+    + Body
+
+            {
+                "status": 400,
+                "response": "Mensaje del error",
+            }
++ Response 401 (application/json)
+    + Body
+
+            {
+                "status": 401,
+                "response": "Unauthorized",
+            }
+
+### Actualizar un producto [PATCH /api/update_product/{sku}{?timestamp}]
+
+Método para actualizar el estado o stock del producto o variante
+
+Estructura del body
+
+| Campo  | Tipo de Dato    | Descripción                |
+|--------|---------|----------------------------|
+| active | Boolean | Estado que se actualizara (true = activo) |
+| stock | Number | Cantidad de inventario disponible |
+| values | String | Valores de la variante |
+
+> * Si no se envía `stock` ni `values`, el producto se desactiva/activa
+> * Si no se envía `stock`, se desactiva/activa la variante específica
+> * Si no se envía `active` ni `values`, el stock se aplica a **todas** las variantes
+> * Si no se envía `active`, el stock se aplica a sóla a la variante específica
+
++ Parameters
+    + sku: `L01936657` (required, string) - SKU del producto
+    + timestamp: `1656461076` (required, number) - Tiempo actual en que se ejecuta el request
+    
++ Request (application/json)
+
+    + Headers
+
+            x-api-token: {API_KEY}
+
+    + Body
+
+                {
+                    "active": true
+                }
+                
++ Response 200 (application/json)
+    + Body
+
+            {
+                "status": 200,
+                "response": "Product & Stock updated!",
+            }
++ Response 400 (application/json)
+    + Body
+
+            {
+                "status": 400,
+                "response": "Mensaje del error",
+            }
++ Response 401 (application/json)
+    + Body
+
+            {
+                "status": 401,
+                "response": "Unauthorized",
+            }
++ Response 404 (application/json)
+    + Body
+
+            {
+                "status": 404,
+                "response": "Product not found",
+            }
++ Response 409 (application/json)
+    + Body
+
+            {
+                "status": 409,
+                "response": "Status is missing",
+            }
+
+### Actualizar varios productos [PATCH /api/bulk_update{?timestamp}]
+
+Estructura del body
+
+| Requerido | Campo                     | Tipo de Dato | Descripción                                      |
+|:----: | ------------------------- |:------------ |:------------------------------------------------ |
+| si   | sku                       | String       | SKU del producto (max 20 caracteres)             |
+| no   | name                      | String       | Nombre del producto                              |
+| no   | preparationTime           | Number       | Tiempo en que se tardará el producto en ser recogido en milisegundos (86400000 = 1 dia)                              |
+| no   | description               | String       | Descripción breve                                |
+| no   | regularPrice              | Double       | Precio sin descuento                             |
+| no   | cargoType                 | String       | Tipo Transaporte (Motocicleta, Liviano y Pesado) |
+| no   | discount                  | Integer      | Descuento (40% = 40)                             |
+| no   | isFragile                 | Boolean       | Producto Fragil? (true/false)                   |
+| no   | fk_categoriesId           | Integer      | ID de Categoría                                  |
+| no   | fk_subcategoriesId        | Integer      | ID de Subcategoría                               |
+| no   | fk_productsTypesId        | Integer      | ID de Tipo de Producto                           |
+| no   | tags                      | String       | Etiquetas o Palabras Claves (separadas por coma) |
+| no   | active                    | String       | Producto activo? (0 = No, 1 = Si)                |
+| no   | stock                     | Integer      | Valor del Stock                                  |
+
++ Parameters
+    + timestamp: `1656461076` (required, number) - Tiempo actual en que se ejecuta el request
+
++ Request (application/json)
+    + Body
+
+            [
+              {
+                "preparationTime": 86400000,
+                "name": "Nike AIR Ultra comfort",
+                "fk_categoriesId": 10,
+                "fk_subcategoriesId": 81,
+                "sku": "32G4HJ32G4",
+                "regularPrice": 85.99,
+                "discount": 0,
+                "cargoType": "Motocicleta",
+                "isFragile": false,
+                "description": "Description ultra comfortable shoes",
+                "tags": "Tag01,Tag02,Tag03",
+                "active": "1",
+                "fk_productsTypesId": 1,
+                "stock": 1,
+              }
+            ]
+    + Headers
+
+            x-api-token: {API_KEY}
+
++ Response 200 (application/json)
+    + Body
+
+            {
+                "status": 200,
+                "response": "1 Productos actualizados & 1 Stock actualizado",
+                "erroredProducts": []
+            }
++ Response 400 (application/json)
+    + Body
+
+            {
+                "status": 400,
+                "response": "Mensaje del error",
+            }
++ Response 401 (application/json)
+    + Body
+
+            {
+                "status": 401,
+                "response": "Unauthorized",
+            }
++ Response 409 (application/json)
+    + Body
+
+            {
+                "status": 409,
+                "response": "Mensaje del error",
+            }
+
+### Activar/Desactivar varios productos [POST /api/update_product{?timestamp}]
+
+Estructura del body
+
+| Campo  | Tipo de Dato    | Descripción                |
+|--------|---------|----------------------------|
+| active | Boolean | Estado que se actualizara |
+| sku | Object | Colección de SKUs que serán afectados |
+
++ Parameters
+    + timestamp: `1656461076` (required, number) - Tiempo actual en que se ejecuta el request
+    
++ Request (application/json)
+
+    + Headers
+
+            x-api-token: {API_KEY}
+
+    + Body
+
+                {
+                  "active": false,
+                  "sku": [
+                    "L01936657",
+                    "L01936656",
+                    "L01936655",
+                    "L01936654"
+                  ]
+                }
+                
++ Response 200 (application/json)
+    + Body
+
+            {
+                "status": 200,
+                "response": "4 Products updated!",
+            }
++ Response 400 (application/json)
+    + Body
+
+            {
+                "status": 400,
+                "response": "Mensaje del error",
+            }
++ Response 401 (application/json)
+    + Body
+
+            {
+                "status": 401,
+                "response": "Unauthorized",
+            }
++ Response 404 (application/json)
+    + Body
+
+            {
+                "status": 404,
+                "response": "Product not found",
+            }
++ Response 409 (application/json)
+    + Body
+
+            {
+                "status": 409,
+                "response": "Status is missing",
+            }
+
+### Actualizar descuentos [POST /api/set_promo{?timestamp}]
+
+Estructura del body
+
+| Requerido  | Campo  | Tipo de Dato    | Descripción                |
+|--------|--------|---------|----------------------------|
+| Sí | discount | Number | Valor del descuento que se aplicará |
+| No | subcategories | Number; Number[] | ID o Colección de IDs de Subcategorías |
+| No | categories | Number; Number[] | ID o Colección de IDs de Categorías |
+> - Si `categories` y `subcategories` no se envían, el descuento es aplicado a todos los productos de la tienda.
+> - Si `subcategories` no se envía, el descuento es aplicado a todos los productos de la(s) categoría(s).
+> - Si `categories` no se envía, el descuento es aplicado a todos los productos de la(s) subcategoría(s) si ésta(s) existe(n).
+
++ Parameters
+    + timestamp: `1656461076` (required, number) - Tiempo actual en que se ejecuta el request
+    
++ Request (application/json)
+
+    + Headers
+
+            x-api-token: {API_KEY}
+
+    + Body
+
+                {
+                    "discount": 20,
+                    "categories": 15,
+                    "subcategories": [42, 43]
+                }
+                
++ Response 200 (application/json)
+    + Body
+
+            {
+                "status": 200,
+                "response": " 30 Products updated!",
+            }
++ Response 400 (application/json)
+    + Body
+
+            {
+                "status": 400,
+                "response": "Mensaje del error",
+            }
++ Response 401 (application/json)
+    + Body
+
+            {
+                "status": 401,
+                "response": "Unauthorized",
+            }
++ Response 404 (application/json)
+    + Body
+
+            {
+                "status": 404,
+                "response": "Product not found",
+            }
++ Response 409 (application/json)
+    + Body
+
+            {
+                "status": 409,
+                "response": "Discount is missing",
+            }
+            
+### Eliminar productos (sólo en Testing) [DELETE /api/delete_products/{sku}{?timestamp}]
+
+Estructura del body (opcional)
+
+| Requerido  | Campo  | Tipo de Dato    | Descripción                |
+|--------|--------|---------|----------------------------|
+| No | sku | String; String[] | SKU o Colección de SKU de los productos a eliminar |
+> - Si se envía el `sku` como BODY, no es necesario enviar el SKU como parametro de ruta.
+> - Si `sku` no se envían, se eliminan todos los productos de la tienda.
+
++ Parameters
+    + sku: `L01936657` (optional, string) - SKU del producto que se desea borrar
+    + timestamp: `1656461076` (required, number) - Tiempo actual en que se ejecuta el request
+    
++ Request (application/json)
+
+    + Headers
+
+            x-api-token: {API_KEY}
+
+    + Body
+
+                {
+                    "sku": "L01936657"
+                }
+                
++ Response 200 (application/json)
+    + Body
+
+            {
+                "status": 200,
+                "response": " 30 Products deleted!",
+            }
++ Response 400 (application/json)
+    + Body
+
+            {
+                "status": 400,
+                "response": "Mensaje del error",
+            }
++ Response 401 (application/json)
+    + Body
+
+            {
+                "status": 401,
+                "response": "Unauthorized",
+            }
++ Response 404 (application/json)
+    + Body
+
+            {
+                "status": 404,
+                "response": "Product not found",
+            }
++ Response 409 (application/json)
+    + Body
+
+            {
+                "status": 409,
+                "response": "Discount is missing",
+            }
