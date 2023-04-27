@@ -161,6 +161,53 @@ Listado de estados de la orden
                 "response": "Unauthorized",
             }
 
+### Actualizar estados (Sólo para productos con variantes) [PATCH /api/change_order/{code}{?timestamp}]
+
+Listado de estados de la orden
+
+| Estado  | Descripción                 |
+| ------- | --------------------------- |
+| Empaque | Proceso de picking (feedback como Orden Aceptada)          |
+| Ruta | En proceso de entrega (feedback como Listo de Recolección)          |
+| Cancelada | Orden Cancelada          |
+
++ Parameters
+    + code: `E08833` (required, string) - codigo de la orden
+    + timestamp: `1656461076` (required, number) - Tiempo actual en que se ejecuta el request
+
++ Request
+    + Headers
+            
+            x-api-token: {API_KEY}
+
+    + Body
+
+                {
+                    "status": "Empaque"
+                }
+
++ Response 200 (application/json)
+    + Body
+
+            {
+                "status": 200,
+                "response": " Order updated!",
+            }
++ Response 400 (application/json)
+    + Body
+
+            {
+                "status": 400,
+                "response": "Mensaje del error",
+            }
++ Response 401 (application/json)
+    + Body
+
+            {
+                "status": 401,
+                "response": "Unauthorized",
+            }
+
 ## Productos [/api]
 
 ### Crear productos [POST /api/create_products{?timestamp}]
