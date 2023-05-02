@@ -518,7 +518,14 @@ Estructura del body
 | no   | fk_productsTypesId        | Integer      | ID de Tipo de Producto                           |
 | no   | tags                      | String       | Etiquetas o Palabras Claves (separadas por coma) |
 | no   | active                    | String       | Producto activo? (0 = No, 1 = Si)                |
-| no   | stock                     | Integer      | Valor del Stock                                  |
+| no   | stock                     | Integer      | Valor del Stock (no enviarlo si se envian variantes) |
+| no   | variants                  | Object[]     | Colección de Variantes (no requerido si no hay variantes) |
+| no   | variants.image            | String       | URL de Imagen de Variante                        |
+| no   | variants.price            | Double       | Precio de Variante                               |
+| no   | variants.discount         | Integer      | Descuento de Variante                            |
+| no   | variants.attributes       | String       | Atributos de Variante                            |
+| no   | variants.values           | String       | Valores de atributos de Variante                 |
+| no   | variants.stock               | Integer      | Valor del Stock                                  |
 
 + Parameters
     + timestamp: `1656461076` (required, number) - Tiempo actual en que se ejecuta el request
